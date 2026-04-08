@@ -8,3 +8,8 @@ output/*.pdf
 *.egg-info/
 dist/
 build/
+
+# Editor / tooling (keep repo portable)
+.cursorrules
+CURSOR_GUIDE.md
+.cursor/

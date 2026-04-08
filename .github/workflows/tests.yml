@@ -23,4 +23,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run test suite
+        env:
+          PYTHONPATH: .
+          PYTHONUTF8: "1"
         run: pytest -q

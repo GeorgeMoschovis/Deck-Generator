@@ -1,15 +1,12 @@
 # Fund Deck Generator
 
-Automated investor-reporting deck generator for hedge funds and AIFMs.
+Generate investor-style PowerPoint reports from a holdings CSV: load positions, pull market data, compute analytics, render charts, and assemble a branded PPTX.
 
-Input: holdings CSV.  
-Output: investor-ready PPTX.
+## Requirements
 
-## Deterministic Runbook
+- Python 3.10+
 
-### 1) Install
-
-PowerShell (Windows):
+## Install
 
 ```powershell
 python -m venv .venv
@@ -18,92 +15,41 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Expected output (tail):
-
-```text
-Successfully installed ... pytest-... python-pptx-... yfinance-...
-```
-
-### 2) Run the CLI manually
+## Run
 
 ```powershell
-python generate_deck.py --holdings data/sample_holdings.csv --date 2026-03-31 --output output/manual_smoke.pptx --aum "EUR 125.4M"
+$env:PYTHONUTF8 = "1"
+python generate_deck.py --holdings data/sample_holdings.csv --date 2026-03-31 --output output/report.pptx --aum "EUR 125.4M"
 ```
 
-Expected output (example):
+On Windows, `PYTHONUTF8=1` avoids console encoding errors if the CLI prints non-ASCII characters.
 
-```text
-📊 Generating deck for Aquila Capital Partners — 2026-03-31
-  → Loading holdings...
-  → Fetching prices for 16 securities...
-  → Computing analytics...
-  → Rendering charts...
-  → Assembling slides...
-✅ Done! Deck: output/manual_smoke.pptx
-   Slides: 7
-```
+## Configuration
 
-Expected artifact:
-- `output/manual_smoke.pptx` exists and opens in PowerPoint.
+Edit `config/fund_config.yaml` for fund metadata, branding colours, slide toggles, risk parameters, and disclaimer text.
 
-### 3) Run reproducible verification
+## Tests
 
-All tests:
+From the repository root:
 
 ```powershell
+$env:PYTHONPATH = "."
+$env:PYTHONUTF8 = "1"
 pytest -q
 ```
 
-Expected output pattern:
+CI runs the same suite in `.github/workflows/tests.yml` with `PYTHONPATH` set for imports.
+
+## Layout
 
 ```text
-................                                                         [100%]
-16 passed, 1 warning in <time>s
+├── generate_deck.py       # CLI
+├── config/                # YAML branding and fund settings
+├── data/                  # Sample holdings
+├── src/                   # Loader, analytics, charts, slides
+└── tests/
 ```
 
-Smoke test only (CLI path, deterministic, offline-safe):
+## Licence
 
-```powershell
-pytest -q tests/test_smoke_cli.py
-```
-
-Expected output:
-
-```text
-.                                                                      [100%]
-1 passed in <time>s
-```
-
-Analytics + loader unit tests:
-
-```powershell
-pytest -q tests/test_analytics.py tests/test_data_loader.py
-```
-
-Expected output:
-
-```text
-...............                                                          [100%]
-15 passed, 1 warning in <time>s
-```
-
-## What the tests verify
-
-- `tests/test_smoke_cli.py`: runs `generate_deck.py` end-to-end on `data/sample_holdings.csv` and verifies a PPTX is generated.
-- `tests/test_analytics.py`: unit tests for portfolio returns, period performance, risk metrics, exposures, top positions, and attribution.
-- `tests/test_data_loader.py`: loader and enrichment edge cases (missing columns, invalid tickers, empty ticker input, deduped ticker fetch, unresolved prices).
-
-The smoke test mocks Yahoo Finance calls so CI and local checks stay deterministic.
-
-## Project Structure
-
-```text
-fund-deck-generator/
-├── generate_deck.py
-├── config/fund_config.yaml
-├── data/sample_holdings.csv
-├── src/
-├── tests/
-├── .github/workflows/tests.yml
-└── requirements.txt
-```
+MIT

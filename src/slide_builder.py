@@ -5,14 +5,19 @@ Assembles the PPTX deck from analytics outputs and chart images.
 Uses python-pptx.
 """
 
+from __future__ import annotations
+
+from typing import Literal
+
 from pptx import Presentation
-from pptx.util import Inches, Pt, Emu
+from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
-from pptx.enum.chart import XL_CHART_TYPE
+from pptx.enum.text import PP_ALIGN
 import pandas as pd
 from pathlib import Path
-from datetime import datetime
+
+PerformanceSlideVariant = Literal["simple", "standard", "detailed"]
+ExposureSlideVariant = Literal["net_bars", "pie_gross", "split"]
 
 
 def _hex_to_rgb(hex_str: str) -> RGBColor:
@@ -79,7 +84,13 @@ class DeckBuilder:
                           f"Monthly Report  |  {report_date}  |  AUM: {aum}",
                           font_size=14, color=self.brand["secondary_color"])
 
-    def add_performance_slide(self, perf: dict, cum_chart_path: str, dd_chart_path: str):
+    def add_performance_slide(
+        self,
+        perf: dict,
+        cum_chart_path: str,
+        dd_chart_path: str,
+        variant: PerformanceSlideVariant = "standard",
+    ):
         slide = self._add_blank_slide(self.brand["bg_light"])
         self._add_textbox(slide, Inches(0.8), Inches(0.4), Inches(10), Inches(0.6),
                           "Performance Summary", font_size=28, bold=True,
@@ -103,23 +114,50 @@ class DeckBuilder:
             self._add_textbox(slide, x + Inches(0.15), Inches(1.85), Inches(2), Inches(0.3),
                               label, font_size=11, color=self.brand["text_muted"])
 
-        # Charts
-        if Path(cum_chart_path).exists():
-            slide.shapes.add_picture(cum_chart_path, Inches(0.8), Inches(2.6), Inches(11.5), Inches(2.2))
-        if Path(dd_chart_path).exists():
-            slide.shapes.add_picture(dd_chart_path, Inches(0.8), Inches(5.0), Inches(11.5), Inches(2.0))
+        if variant == "simple":
+            return
 
-    def add_exposure_slide(self, title: str, chart_path: str, table_data: pd.DataFrame):
+        # Charts: standard = default sizes; detailed = taller charts for readability
+        cum_top = Inches(2.6)
+        cum_h = Inches(2.4 if variant == "detailed" else 2.2)
+        dd_top = Inches(5.0 if variant == "standard" else 5.15)
+        dd_h = Inches(2.2 if variant == "detailed" else 2.0)
+        chart_w = Inches(11.5)
+
+        if Path(cum_chart_path).exists():
+            slide.shapes.add_picture(cum_chart_path, Inches(0.8), cum_top, chart_w, cum_h)
+        if Path(dd_chart_path).exists():
+            slide.shapes.add_picture(dd_chart_path, Inches(0.8), dd_top, chart_w, dd_h)
+
+    def add_exposure_slide(
+        self,
+        title: str,
+        chart_path: str,
+        table_data: pd.DataFrame,
+        variant: ExposureSlideVariant = "net_bars",
+        secondary_chart_path: str | None = None,
+    ):
         slide = self._add_blank_slide(self.brand["bg_light"])
         self._add_textbox(slide, Inches(0.8), Inches(0.4), Inches(10), Inches(0.6),
                           title, font_size=28, bold=True,
                           color=self.brand["primary_color"], font_name=self.brand["font_heading"])
-        if Path(chart_path).exists():
-            slide.shapes.add_picture(chart_path, Inches(0.5), Inches(1.3), Inches(7), Inches(5.5))
 
-        # Summary table on the right
+        if variant == "net_bars":
+            if Path(chart_path).exists():
+                slide.shapes.add_picture(chart_path, Inches(0.5), Inches(1.3), Inches(7), Inches(5.5))
+        elif variant == "pie_gross":
+            if Path(chart_path).exists():
+                slide.shapes.add_picture(chart_path, Inches(2.0), Inches(1.2), Inches(5.5), Inches(5.6))
+        elif variant == "split":
+            if Path(chart_path).exists():
+                slide.shapes.add_picture(chart_path, Inches(0.45), Inches(1.35), Inches(5.8), Inches(5.4))
+            if secondary_chart_path and Path(secondary_chart_path).exists():
+                slide.shapes.add_picture(secondary_chart_path, Inches(6.45), Inches(1.35), Inches(5.8), Inches(5.4))
+
+        # Summary table on the right (narrower for pie-only layout)
+        table_left = Inches(8.0 if variant != "pie_gross" else 8.2)
         rows = min(len(table_data), 10)
-        table_shape = slide.shapes.add_table(rows + 1, 3, Inches(8), Inches(1.3), Inches(4.8), Inches(0.4 * (rows + 1)))
+        table_shape = slide.shapes.add_table(rows + 1, 3, table_left, Inches(1.3), Inches(4.6), Inches(0.4 * (rows + 1)))
         table = table_shape.table
         headers = ["", "Gross %", "Net %"]
         for j, h in enumerate(headers):
@@ -265,4 +303,4 @@ class DeckBuilder:
 
     def save(self, output_path: str):
         self.prs.save(output_path)
-        print(f"✓ Deck saved to {output_path}")
+        print(f"Deck saved to {output_path}")
