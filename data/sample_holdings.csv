@@ -1,0 +1,17 @@
+ticker,quantity,avg_cost,currency,sector,country,strategy_sleeve,side
+NVDA,1500,118.50,USD,Technology,United States,Long/Short Equity,LONG
+ASML.AS,400,680.00,EUR,Technology,Netherlands,Long/Short Equity,LONG
+NOVO-B.CO,600,750.00,DKK,Healthcare,Denmark,Long/Short Equity,LONG
+SAP.DE,350,195.00,EUR,Technology,Germany,Long/Short Equity,LONG
+SHEL.L,2000,2650.00,GBP,Energy,United Kingdom,Long/Short Equity,LONG
+TTE.PA,1200,58.00,EUR,Energy,France,Long/Short Equity,LONG
+NESN.SW,300,98.00,CHF,Consumer Staples,Switzerland,Long/Short Equity,LONG
+OPAP.AT,5000,15.80,EUR,Consumer Discretionary,Greece,Long/Short Equity,LONG
+MYTIL.AT,3000,32.50,EUR,Industrials,Greece,Long/Short Equity,LONG
+HTO.AT,8000,7.20,EUR,Utilities,Greece,Long/Short Equity,LONG
+TSLA,800,175.00,USD,Consumer Discretionary,United States,Long/Short Equity,SHORT
+SNAP,10000,11.50,USD,Communication Services,United States,Long/Short Equity,SHORT
+BYND,5000,7.20,USD,Consumer Staples,United States,Market Neutral,SHORT
+COIN,600,210.00,USD,Financials,United States,Market Neutral,SHORT
+PLTR,3000,22.00,USD,Technology,United States,Market Neutral,SHORT
+MARA,4000,18.50,USD,Financials,United States,Market Neutral,SHORT

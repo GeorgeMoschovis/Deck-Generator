@@ -1,0 +1,48 @@
+# Fund Configuration
+# Edit this file to customise branding, benchmarks, and slide content
+
+fund:
+  name: "Aquila Capital Partners"
+  legal_name: "Aquila Capital Partners Master Fund Ltd."
+  strategy: "Global Long/Short Equity & Market Neutral"
+  inception_date: "2023-01-15"
+  base_currency: "EUR"
+  benchmark: "STOXX Europe 600"
+  benchmark_ticker: "^STOXX"
+  logo_path: "config/logo.png"  # Place your fund logo here
+
+branding:
+  primary_color: "1E2761"      # Navy
+  secondary_color: "CADCFC"    # Ice blue
+  accent_color: "D4AF37"       # Gold
+  positive_color: "22C55E"     # Positive returns / P&L
+  negative_color: "EF4444"     # Negative returns / P&L
+  surface_color: "FFFFFF"      # Cards and table body backgrounds
+  border_color: "E2E8F0"       # Card and table borders
+  text_light: "FFFFFF"         # Text on dark/background headers
+  bg_dark: "0F1629"            # Dark slide background
+  bg_light: "F8F9FC"           # Light slide background
+  text_dark: "1E293B"          # Body text
+  text_muted: "64748B"         # Secondary text
+  font_heading: "Georgia"
+  font_body: "Calibri"
+
+slides:
+  title: true
+  performance_summary: true
+  exposure_sector: true
+  exposure_geography: true
+  top_positions: true
+  risk_metrics: true
+  attribution: true
+  disclaimer: true
+
+risk:
+  var_confidence: 0.95
+  var_lookback_days: 252
+  risk_free_rate: 0.035
+
+disclaimer_text: |
+  This document is intended solely for professional and institutional investors
+  and does not constitute investment advice or a solicitation to invest.
+  Past performance is not indicative of future results.

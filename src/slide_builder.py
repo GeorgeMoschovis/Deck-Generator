@@ -1,0 +1,268 @@
+"""
+slide_builder.py
+----------------
+Assembles the PPTX deck from analytics outputs and chart images.
+Uses python-pptx.
+"""
+
+from pptx import Presentation
+from pptx.util import Inches, Pt, Emu
+from pptx.dml.color import RGBColor
+from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.chart import XL_CHART_TYPE
+import pandas as pd
+from pathlib import Path
+from datetime import datetime
+
+
+def _hex_to_rgb(hex_str: str) -> RGBColor:
+    return RGBColor(int(hex_str[:2], 16), int(hex_str[2:4], 16), int(hex_str[4:6], 16))
+
+
+class DeckBuilder:
+    """Builds an investor-ready PPTX slide deck."""
+
+    def __init__(self, config: dict):
+        self.config = config
+        self.brand = config["branding"]
+        self.prs = Presentation()
+        self.prs.slide_width = Inches(13.333)
+        self.prs.slide_height = Inches(7.5)
+
+    def _brand_color(self, key: str, fallback: str) -> str:
+        """Read brand colour from config with a safe fallback."""
+        return self.brand.get(key, fallback)
+
+    def _add_blank_slide(self, bg_color: str = None):
+        layout = self.prs.slide_layouts[6]  # blank
+        slide = self.prs.slides.add_slide(layout)
+        if bg_color:
+            background = slide.background
+            fill = background.fill
+            fill.solid()
+            fill.fore_color.rgb = _hex_to_rgb(bg_color)
+        return slide
+
+    def _add_textbox(self, slide, left, top, width, height, text, font_size=14,
+                      bold=False, color=None, font_name=None, alignment=PP_ALIGN.LEFT):
+        txBox = slide.shapes.add_textbox(left, top, width, height)
+        tf = txBox.text_frame
+        tf.word_wrap = True
+        p = tf.paragraphs[0]
+        p.text = text
+        p.font.size = Pt(font_size)
+        p.font.bold = bold
+        p.font.color.rgb = _hex_to_rgb(color or self.brand["text_dark"])
+        p.font.name = font_name or self.brand["font_body"]
+        p.alignment = alignment
+        return txBox
+
+    def add_title_slide(self, report_date: str, aum: str = "€125.4M"):
+        slide = self._add_blank_slide(self.brand["bg_dark"])
+        fund = self.config["fund"]
+
+        # Gold accent line
+        from pptx.util import Inches
+        shape = slide.shapes.add_shape(
+            1, Inches(1.5), Inches(2.8), Inches(2), Pt(3)
+        )
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = _hex_to_rgb(self.brand["accent_color"])
+        shape.line.fill.background()
+
+        self._add_textbox(slide, Inches(1.5), Inches(3.0), Inches(10), Inches(1),
+                          fund["name"], font_size=40, bold=True,
+                          color=self._brand_color("text_light", "FFFFFF"), font_name=self.brand["font_heading"])
+        self._add_textbox(slide, Inches(1.5), Inches(4.0), Inches(10), Inches(0.5),
+                          fund["strategy"], font_size=18, color=self.brand["secondary_color"])
+        self._add_textbox(slide, Inches(1.5), Inches(4.8), Inches(10), Inches(0.5),
+                          f"Monthly Report  |  {report_date}  |  AUM: {aum}",
+                          font_size=14, color=self.brand["secondary_color"])
+
+    def add_performance_slide(self, perf: dict, cum_chart_path: str, dd_chart_path: str):
+        slide = self._add_blank_slide(self.brand["bg_light"])
+        self._add_textbox(slide, Inches(0.8), Inches(0.4), Inches(10), Inches(0.6),
+                          "Performance Summary", font_size=28, bold=True,
+                          color=self.brand["primary_color"], font_name=self.brand["font_heading"])
+
+        # KPI boxes
+        x_start = 0.8
+        for i, (label, value) in enumerate(perf.items()):
+            x = Inches(x_start + i * 2.5)
+            # Box background
+            shape = slide.shapes.add_shape(1, x, Inches(1.3), Inches(2.2), Inches(1.0))
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = _hex_to_rgb(self._brand_color("surface_color", "FFFFFF"))
+            shape.line.color.rgb = _hex_to_rgb(self._brand_color("border_color", "E2E8F0"))
+            shape.line.width = Pt(1)
+
+            color = self._brand_color("positive_color", "22C55E") if value >= 0 else self._brand_color("negative_color", "EF4444")
+            sign = "+" if value >= 0 else ""
+            self._add_textbox(slide, x + Inches(0.15), Inches(1.35), Inches(2), Inches(0.6),
+                              f"{sign}{value}%", font_size=26, bold=True, color=color)
+            self._add_textbox(slide, x + Inches(0.15), Inches(1.85), Inches(2), Inches(0.3),
+                              label, font_size=11, color=self.brand["text_muted"])
+
+        # Charts
+        if Path(cum_chart_path).exists():
+            slide.shapes.add_picture(cum_chart_path, Inches(0.8), Inches(2.6), Inches(11.5), Inches(2.2))
+        if Path(dd_chart_path).exists():
+            slide.shapes.add_picture(dd_chart_path, Inches(0.8), Inches(5.0), Inches(11.5), Inches(2.0))
+
+    def add_exposure_slide(self, title: str, chart_path: str, table_data: pd.DataFrame):
+        slide = self._add_blank_slide(self.brand["bg_light"])
+        self._add_textbox(slide, Inches(0.8), Inches(0.4), Inches(10), Inches(0.6),
+                          title, font_size=28, bold=True,
+                          color=self.brand["primary_color"], font_name=self.brand["font_heading"])
+        if Path(chart_path).exists():
+            slide.shapes.add_picture(chart_path, Inches(0.5), Inches(1.3), Inches(7), Inches(5.5))
+
+        # Summary table on the right
+        rows = min(len(table_data), 10)
+        table_shape = slide.shapes.add_table(rows + 1, 3, Inches(8), Inches(1.3), Inches(4.8), Inches(0.4 * (rows + 1)))
+        table = table_shape.table
+        headers = ["", "Gross %", "Net %"]
+        for j, h in enumerate(headers):
+            cell = table.cell(0, j)
+            cell.text = h
+            for p in cell.text_frame.paragraphs:
+                p.font.size = Pt(10)
+                p.font.bold = True
+                p.font.color.rgb = _hex_to_rgb(self._brand_color("text_light", "FFFFFF"))
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = _hex_to_rgb(self.brand["primary_color"])
+
+        for i, (idx, row) in enumerate(table_data.head(rows).iterrows()):
+            table.cell(i + 1, 0).text = str(idx)
+            table.cell(i + 1, 1).text = f"{row['gross_weight']:.1f}%"
+            table.cell(i + 1, 2).text = f"{row['net_weight']:+.1f}%"
+            for j in range(3):
+                for p in table.cell(i + 1, j).text_frame.paragraphs:
+                    p.font.size = Pt(9)
+                    p.font.color.rgb = _hex_to_rgb(self.brand["text_dark"])
+
+    def add_top_positions_slide(self, longs: pd.DataFrame, shorts: pd.DataFrame):
+        slide = self._add_blank_slide(self.brand["bg_light"])
+        self._add_textbox(slide, Inches(0.8), Inches(0.4), Inches(10), Inches(0.6),
+                          "Top Positions", font_size=28, bold=True,
+                          color=self.brand["primary_color"], font_name=self.brand["font_heading"])
+
+        for col_idx, (label, df, color) in enumerate([
+            ("Top Longs", longs, self._brand_color("positive_color", "22C55E")),
+            ("Top Shorts", shorts, self._brand_color("negative_color", "EF4444")),
+        ]):
+            x_base = Inches(0.8 + col_idx * 6.2)
+            self._add_textbox(slide, x_base, Inches(1.2), Inches(5), Inches(0.4),
+                              label, font_size=16, bold=True, color=color)
+            for i, (_, row) in enumerate(df.iterrows()):
+                y = Inches(1.8 + i * 0.9)
+                # Card
+                shape = slide.shapes.add_shape(1, x_base, y, Inches(5.5), Inches(0.75))
+                shape.fill.solid()
+                shape.fill.fore_color.rgb = _hex_to_rgb(self._brand_color("surface_color", "FFFFFF"))
+                shape.line.color.rgb = _hex_to_rgb(self._brand_color("border_color", "E2E8F0"))
+                shape.line.width = Pt(1)
+
+                self._add_textbox(slide, x_base + Inches(0.2), y + Inches(0.05), Inches(2), Inches(0.35),
+                                  row["ticker"], font_size=14, bold=True)
+                self._add_textbox(slide, x_base + Inches(0.2), y + Inches(0.38), Inches(2), Inches(0.3),
+                                  f"{row['sector']}  •  {row['country']}", font_size=9, color=self.brand["text_muted"])
+
+                pnl_color = self._brand_color("positive_color", "22C55E") if row["pnl"] >= 0 else self._brand_color("negative_color", "EF4444")
+                pnl_sign = "+" if row["pnl"] >= 0 else ""
+                self._add_textbox(slide, x_base + Inches(3.2), y + Inches(0.05), Inches(2), Inches(0.35),
+                                  f"{row['weight_gross'] * 100:.1f}% weight", font_size=11,
+                                  color=self.brand["text_muted"], alignment=PP_ALIGN.RIGHT)
+                self._add_textbox(slide, x_base + Inches(3.2), y + Inches(0.38), Inches(2), Inches(0.3),
+                                  f"{pnl_sign}{row['pnl_pct'] * 100:.1f}% P&L", font_size=10,
+                                  color=pnl_color, alignment=PP_ALIGN.RIGHT)
+
+    def add_risk_slide(self, metrics: dict):
+        slide = self._add_blank_slide(self.brand["bg_light"])
+        self._add_textbox(slide, Inches(0.8), Inches(0.4), Inches(10), Inches(0.6),
+                          "Risk Metrics", font_size=28, bold=True,
+                          color=self.brand["primary_color"], font_name=self.brand["font_heading"])
+
+        for i, (label, value) in enumerate(metrics.items()):
+            col = i % 3
+            row = i // 3
+            x = Inches(0.8 + col * 4.0)
+            y = Inches(1.5 + row * 2.5)
+
+            shape = slide.shapes.add_shape(1, x, y, Inches(3.5), Inches(2.0))
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = _hex_to_rgb(self._brand_color("surface_color", "FFFFFF"))
+            shape.line.color.rgb = _hex_to_rgb(self._brand_color("border_color", "E2E8F0"))
+            shape.line.width = Pt(1)
+
+            display = f"{value}%" if "%" not in label and "Ratio" not in label else f"{value}"
+            if "Ratio" in label:
+                display = f"{value}x"
+            self._add_textbox(slide, x + Inches(0.3), y + Inches(0.3), Inches(3), Inches(0.8),
+                              str(display), font_size=36, bold=True, color=self.brand["primary_color"])
+            self._add_textbox(slide, x + Inches(0.3), y + Inches(1.2), Inches(3), Inches(0.5),
+                              label, font_size=12, color=self.brand["text_muted"])
+
+    def add_attribution_slide(self, attribution: pd.DataFrame, chart_path: str):
+        slide = self._add_blank_slide(self.brand["bg_light"])
+        self._add_textbox(slide, Inches(0.8), Inches(0.4), Inches(10), Inches(0.6),
+                          "P&L Attribution", font_size=28, bold=True,
+                          color=self.brand["primary_color"], font_name=self.brand["font_heading"])
+
+        if Path(chart_path).exists():
+            slide.shapes.add_picture(chart_path, Inches(0.6), Inches(1.3), Inches(7.0), Inches(5.6))
+
+        rows = min(len(attribution), 10)
+        if rows == 0:
+            self._add_textbox(
+                slide, Inches(8.0), Inches(2.8), Inches(4.8), Inches(1.0),
+                "No attribution data available", font_size=14, color=self.brand["text_muted"]
+            )
+            return
+
+        table_shape = slide.shapes.add_table(
+            rows + 1, 3, Inches(8.0), Inches(1.3), Inches(4.8), Inches(0.42 * (rows + 1))
+        )
+        table = table_shape.table
+        headers = ["Group", "P&L", "Contribution %"]
+
+        for j, header in enumerate(headers):
+            cell = table.cell(0, j)
+            cell.text = header
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = _hex_to_rgb(self.brand["primary_color"])
+            for p in cell.text_frame.paragraphs:
+                p.font.size = Pt(10)
+                p.font.bold = True
+                p.font.color.rgb = _hex_to_rgb(self._brand_color("text_light", "FFFFFF"))
+
+        for i, (group_name, row) in enumerate(attribution.head(rows).iterrows()):
+            table.cell(i + 1, 0).text = str(group_name)
+            table.cell(i + 1, 1).text = f"{row['total_pnl']:,.0f}"
+            contrib = row["pnl_contribution_pct"]
+            table.cell(i + 1, 2).text = f"{contrib:+.2f}%"
+
+            for j in range(3):
+                cell = table.cell(i + 1, j)
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = _hex_to_rgb(self._brand_color("surface_color", "FFFFFF"))
+                for p in cell.text_frame.paragraphs:
+                    p.font.size = Pt(9)
+                    p.font.color.rgb = _hex_to_rgb(self.brand["text_dark"])
+
+            contrib_color = self._brand_color("positive_color", "22C55E") if contrib >= 0 else self._brand_color("negative_color", "EF4444")
+            for p in table.cell(i + 1, 2).text_frame.paragraphs:
+                p.font.color.rgb = _hex_to_rgb(contrib_color)
+                p.alignment = PP_ALIGN.RIGHT
+
+    def add_disclaimer_slide(self):
+        slide = self._add_blank_slide(self.brand["bg_dark"])
+        self._add_textbox(slide, Inches(1.5), Inches(1.5), Inches(10), Inches(0.6),
+                          self.config["fund"]["legal_name"], font_size=24, bold=True,
+                          color=self._brand_color("text_light", "FFFFFF"), font_name=self.brand["font_heading"])
+        self._add_textbox(slide, Inches(1.5), Inches(2.5), Inches(10), Inches(4),
+                          self.config["disclaimer_text"], font_size=11, color=self.brand["secondary_color"])
+
+    def save(self, output_path: str):
+        self.prs.save(output_path)
+        print(f"✓ Deck saved to {output_path}")
