@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError, version as pkg_version
 from pathlib import Path
 
 import yaml
@@ -26,6 +28,21 @@ from src.deck_pipeline import generate_deck
 from src.slide_variants import default_enabled_slides
 
 LOG = logging.getLogger("fund_deck")
+
+
+def _cli_version() -> str:
+    """Version from installed package metadata, else pyproject.toml next to this script."""
+    try:
+        return pkg_version("fund-deck-generator")
+    except PackageNotFoundError:
+        pass
+    pyproject = Path(__file__).resolve().parent / "pyproject.toml"
+    if pyproject.is_file():
+        text = pyproject.read_text(encoding="utf-8")
+        m = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+        if m:
+            return m.group(1)
+    return "0.0.0"
 
 
 def _resolve_template_arg(project_root: Path, template: str | None) -> Path | None:
@@ -53,7 +70,14 @@ def main() -> None:
 
     project_root = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description="Generate an investor reporting deck from a holdings CSV.")
-    parser.add_argument("--holdings", required=True, help="Path to holdings CSV file")
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"fund-deck {_cli_version()}",
+        help="Print version and exit",
+    )
+    parser.add_argument("--holdings", default=None, help="Path to holdings CSV file")
     parser.add_argument("--config", default="config/fund_config.yaml", help="Path to fund config YAML")
     parser.add_argument(
         "--template",
@@ -74,6 +98,8 @@ def main() -> None:
         help="After PPTX, export PDF (LibreOffice headless, or PowerPoint on Windows with comtypes).",
     )
     args = parser.parse_args()
+    if args.holdings is None:
+        parser.error("the following arguments are required: --holdings")
 
     config_path = Path(args.config)
     if not config_path.is_file():

@@ -1,13 +1,24 @@
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 from pptx import Presentation
 
 import generate_deck
+
+
+def test_cli_version_exits_zero(capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["generate_deck.py", "--version"])
+    with pytest.raises(SystemExit) as exc:
+        generate_deck.main()
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert re.match(r"fund-deck \d+\.\d+\.\d+\s*$", out.strip())
 
 
 def test_cli_smoke_generates_pptx(monkeypatch, tmp_path) -> None:
