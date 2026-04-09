@@ -18,6 +18,7 @@ import streamlit as st
 import yaml
 
 from src.deck_pipeline import generate_deck
+from src.package_version import package_version
 from src.slide_variants import (
     DEFAULT_VARIANTS,
     SLIDE_ORDER,
@@ -133,6 +134,7 @@ def main() -> None:
 
         st.divider()
         st.markdown("**Setup:** `pip install -r requirements.txt` then run `streamlit run app_deck_builder.py`")
+        st.caption(f"fund-deck-generator v{package_version()}")
 
     st.subheader("1) Include these slides")
     cols = st.columns(4)

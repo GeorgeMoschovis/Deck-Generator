@@ -21,7 +21,10 @@ Editable install with CLI entry point `fund-deck`:
 ```powershell
 pip install -e ".[dev]"
 fund-deck --help
+fund-deck --version
 ```
+
+From a repo checkout without an editable install, `python generate_deck.py --version` prints the same version (from `pyproject.toml`).
 
 ## Run (CLI)
 

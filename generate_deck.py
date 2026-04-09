@@ -16,34 +16,18 @@ from __future__ import annotations
 
 import argparse
 import logging
-import re
 import sys
 from datetime import datetime
-from importlib.metadata import PackageNotFoundError, version as pkg_version
 from pathlib import Path
 
 import yaml
 from pptx import Presentation
 
 from src.deck_pipeline import generate_deck
+from src.package_version import package_version
 from src.slide_variants import default_enabled_slides
 
 LOG = logging.getLogger("fund_deck")
-
-
-def _cli_version() -> str:
-    """Version from installed package metadata, else pyproject.toml next to this script."""
-    try:
-        return pkg_version("fund-deck-generator")
-    except PackageNotFoundError:
-        pass
-    pyproject = Path(__file__).resolve().parent / "pyproject.toml"
-    if pyproject.is_file():
-        text = pyproject.read_text(encoding="utf-8")
-        m = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
-        if m:
-            return m.group(1)
-    return "0.0.0"
 
 
 def _resolve_template_arg(project_root: Path, template: str | None) -> Path | None:
@@ -75,7 +59,7 @@ def main() -> None:
         "-V",
         "--version",
         action="version",
-        version=f"fund-deck {_cli_version()}",
+        version=f"fund-deck {package_version()}",
         help="Print version and exit",
     )
     parser.add_argument("--holdings", default=None, help="Path to holdings CSV file")
