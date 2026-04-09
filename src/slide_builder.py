@@ -197,6 +197,9 @@ class DeckBuilder:
                 slide.shapes.add_picture(chart_path, Inches(0.45), Inches(1.35), Inches(5.8), Inches(5.4))
             if secondary_chart_path and Path(secondary_chart_path).exists():
                 slide.shapes.add_picture(secondary_chart_path, Inches(6.45), Inches(1.35), Inches(5.8), Inches(5.4))
+            # No summary table: it sat in the same band as the pie and overlapped it on a standard slide.
+            self._add_slide_footer(slide, bg="light")
+            return
         # table_only: no chart — full-width summary table below title
 
         if variant == "table_only":
