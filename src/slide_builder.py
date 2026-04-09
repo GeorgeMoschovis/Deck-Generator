@@ -7,17 +7,20 @@ Uses python-pptx.
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from typing import Literal
 
+import pandas as pd
 from pptx import Presentation
-from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
-import pandas as pd
-from pathlib import Path
+from pptx.util import Inches, Pt
+
+logger = logging.getLogger(__name__)
 
 PerformanceSlideVariant = Literal["simple", "standard", "detailed"]
-ExposureSlideVariant = Literal["net_bars", "pie_gross", "split"]
+ExposureSlideVariant = Literal["net_bars", "pie_gross", "split", "table_only"]
 
 
 def _hex_to_rgb(hex_str: str) -> RGBColor:
@@ -38,7 +41,7 @@ class DeckBuilder:
         """Read brand colour from config with a safe fallback."""
         return self.brand.get(key, fallback)
 
-    def _add_blank_slide(self, bg_color: str = None):
+    def _add_blank_slide(self, bg_color: str | None = None):
         layout = self.prs.slide_layouts[6]  # blank
         slide = self.prs.slides.add_slide(layout)
         if bg_color:
@@ -153,11 +156,19 @@ class DeckBuilder:
                 slide.shapes.add_picture(chart_path, Inches(0.45), Inches(1.35), Inches(5.8), Inches(5.4))
             if secondary_chart_path and Path(secondary_chart_path).exists():
                 slide.shapes.add_picture(secondary_chart_path, Inches(6.45), Inches(1.35), Inches(5.8), Inches(5.4))
+        # table_only: no chart — full-width summary table below title
 
-        # Summary table on the right (narrower for pie-only layout)
-        table_left = Inches(8.0 if variant != "pie_gross" else 8.2)
+        if variant == "table_only":
+            table_left = Inches(0.8)
+            table_width = Inches(11.5)
+        else:
+            # Summary table on the right (narrower when a chart occupies the left)
+            table_left = Inches(8.0 if variant != "pie_gross" else 8.2)
+            table_width = Inches(4.6)
         rows = min(len(table_data), 10)
-        table_shape = slide.shapes.add_table(rows + 1, 3, table_left, Inches(1.3), Inches(4.6), Inches(0.4 * (rows + 1)))
+        table_shape = slide.shapes.add_table(
+            rows + 1, 3, table_left, Inches(1.3), table_width, Inches(0.4 * (rows + 1))
+        )
         table = table_shape.table
         headers = ["", "Gross %", "Net %"]
         for j, h in enumerate(headers):
@@ -303,4 +314,4 @@ class DeckBuilder:
 
     def save(self, output_path: str):
         self.prs.save(output_path)
-        print(f"Deck saved to {output_path}")
+        logger.info("Deck saved to %s", output_path)

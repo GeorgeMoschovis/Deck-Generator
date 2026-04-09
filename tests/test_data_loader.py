@@ -3,7 +3,13 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from src.data_loader import ENRICHED_HOLDINGS_COLUMNS, enrich_holdings, fetch_prices, load_holdings
+from src.data_loader import (
+    ENRICHED_HOLDINGS_COLUMNS,
+    enrich_holdings,
+    fetch_prices,
+    load_holdings,
+    load_price_snapshot,
+)
 
 
 def _write_holdings_csv(path, rows):
@@ -165,3 +171,33 @@ def test_enrich_holdings_returns_empty_with_required_columns_when_all_unresolved
 
     assert enriched.empty
     assert set(ENRICHED_HOLDINGS_COLUMNS).issubset(enriched.columns)
+
+
+def test_load_price_snapshot_csv(tmp_path) -> None:
+    idx = pd.date_range("2025-01-01", periods=5, freq="B")
+    df = pd.DataFrame({"AAA": range(5), "BBB": range(10, 15)}, index=idx)
+    path = tmp_path / "snap.csv"
+    df.to_csv(path)
+    loaded = load_price_snapshot(path)
+    assert len(loaded) == 5
+    assert "AAA" in loaded.columns
+
+
+def test_fetch_prices_deck_use_snapshot_requires_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DECK_USE_SNAPSHOT", "1")
+    monkeypatch.delenv("DECK_PRICE_SNAPSHOT", raising=False)
+    monkeypatch.delenv("DECK_SNAPSHOT_PATH", raising=False)
+    with pytest.raises(ValueError, match="DECK_USE_SNAPSHOT"):
+        fetch_prices(["AAPL"])
+
+
+def test_fetch_prices_deck_use_snapshot_with_path(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    idx = pd.date_range("2025-01-01", periods=3, freq="B")
+    p = tmp_path / "p.csv"
+    pd.DataFrame({"AAPL": [1.0, 1.1, 1.2]}, index=idx).to_csv(p)
+    monkeypatch.setenv("DECK_USE_SNAPSHOT", "1")
+    monkeypatch.setenv("DECK_SNAPSHOT_PATH", str(p))
+    monkeypatch.delenv("DECK_PRICE_SNAPSHOT", raising=False)
+    out = fetch_prices(["AAPL"])
+    assert "AAPL" in out.columns
+    assert len(out) == 3

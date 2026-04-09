@@ -1,0 +1,10 @@
+# Merged onto base config: full internal / GP-style pack (all sections on).
+slides:
+  title: true
+  performance_summary: true
+  exposure_sector: true
+  exposure_geography: true
+  top_positions: true
+  risk_metrics: true
+  attribution: true
+  disclaimer: true

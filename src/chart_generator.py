@@ -5,12 +5,13 @@ Generates matplotlib charts as PNG images for embedding into slides.
 """
 
 import matplotlib
+
 matplotlib.use("Agg")
+from typing import Any, Mapping
+
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import pandas as pd
-from typing import Any, Mapping
-
 
 DEFAULT_PALETTE: dict[str, str] = {
     "primary": "tab:blue",
@@ -98,8 +99,9 @@ def cumulative_return_chart(
     fig, ax = plt.subplots(figsize=(8, 3.5), dpi=200)
     cum = (1 + returns).cumprod() - 1
     ax.plot(cum.index, cum.values * 100, color=palette["primary"], linewidth=2, label="Portfolio")
-    if benchmark_returns is not None:
-        bm_cum = (1 + benchmark_returns).cumprod() - 1
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        bm_aligned = benchmark_returns.reindex(returns.index).ffill().bfill().fillna(0.0)
+        bm_cum = (1 + bm_aligned).cumprod() - 1
         ax.plot(
             bm_cum.index,
             bm_cum.values * 100,
@@ -182,11 +184,16 @@ def pie_chart(
         palette["negative"],
     ]
     colours = [base_colours[i % len(base_colours)] for i in range(len(data))]
-    _, _, autotexts = ax.pie(
-        data.values, labels=data.index, autopct="%.1f%%",
-        colors=colours, startangle=90, pctdistance=0.75,
-        textprops={"fontsize": 9}
+    pie_out = ax.pie(
+        data.values,
+        labels=data.index,
+        autopct="%.1f%%",
+        colors=colours,
+        startangle=90,
+        pctdistance=0.75,
+        textprops={"fontsize": 9},
     )
+    autotexts = pie_out[2] if len(pie_out) > 2 else ()
     for t in autotexts:
         t.set_fontsize(8)
         t.set_color(palette["primary"])

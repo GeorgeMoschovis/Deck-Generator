@@ -47,6 +47,15 @@ def test_performance_table_returns_zeroes_for_empty_series() -> None:
     assert perf == {"MTD": 0.0, "QTD": 0.0, "YTD": 0.0, "ITD": 0.0}
 
 
+def test_performance_table_itd_respects_inception_date() -> None:
+    idx = pd.date_range("2024-01-02", periods=200, freq="B")
+    r = pd.Series(0.002, index=idx)
+    inception = "2024-06-01"
+    sub = r[r.index >= pd.Timestamp(inception)]
+    expected_itd = round(((1 + sub).prod() - 1) * 100, 2)
+    assert performance_table(r, inception_date=inception)["ITD"] == expected_itd
+
+
 def test_risk_metrics_handles_empty_and_zero_volatility_inputs() -> None:
     empty_metrics = risk_metrics(pd.Series(dtype="float64"))
     assert empty_metrics == {

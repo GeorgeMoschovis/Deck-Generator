@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fund-deck-generator"
+version = "0.1.0"
+description = "Generate investor-style PowerPoint decks from a holdings CSV"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "yfinance>=0.2.30",
+    "scipy>=1.11",
+    "matplotlib>=3.7",
+    "python-pptx>=0.6.21",
+    "PyYAML>=6.0",
+    "streamlit>=1.28.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8.0",
+    "mypy>=1.11.0",
+    "types-PyYAML>=6.0",
+]
+# Windows-only: PowerPoint COM export when LibreOffice is not installed
+pdf-windows = ["comtypes>=1.4.0"]
+
+[project.scripts]
+fund-deck = "generate_deck:main"
+
+[tool.setuptools]
+py-modules = ["generate_deck"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+check_untyped_defs = false
+packages = ["src"]
+disable_error_code = ["import-untyped"]

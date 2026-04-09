@@ -1,0 +1,10 @@
+# Merged onto base config: short deck for a quick investor update.
+slides:
+  title: true
+  performance_summary: true
+  exposure_sector: false
+  exposure_geography: false
+  top_positions: true
+  risk_metrics: true
+  attribution: false
+  disclaimer: true
