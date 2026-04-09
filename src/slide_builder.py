@@ -30,9 +30,10 @@ def _hex_to_rgb(hex_str: str) -> RGBColor:
 class DeckBuilder:
     """Builds an investor-ready PPTX slide deck."""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, metadata: dict | None = None):
         self.config = config
         self.brand = config["branding"]
+        self._metadata = metadata or {}
         self.prs = Presentation()
         self.prs.slide_width = Inches(13.333)
         self.prs.slide_height = Inches(7.5)
@@ -65,12 +66,32 @@ class DeckBuilder:
         p.alignment = alignment
         return txBox
 
+    def _add_slide_footer(self, slide, *, bg: Literal["light", "dark"]) -> None:
+        """As-of, generation time, and prices source (content slides)."""
+        m = self._metadata
+        if not m.get("as_of_iso"):
+            return
+        line1 = f"As of {m['as_of_iso']}  |  Generated {m.get('generated_at', '')}"
+        line2 = m.get("prices_caption", "")
+        text = f"{line1}\n{line2}" if line2 else line1
+        color = self.brand["text_muted"] if bg == "light" else self.brand["secondary_color"]
+        self._add_textbox(
+            slide,
+            Inches(0.9),
+            Inches(6.95),
+            Inches(11.5),
+            Inches(0.52),
+            text,
+            font_size=8,
+            color=color,
+            alignment=PP_ALIGN.CENTER,
+        )
+
     def add_title_slide(self, report_date: str, aum: str = "€125.4M"):
         slide = self._add_blank_slide(self.brand["bg_dark"])
         fund = self.config["fund"]
 
         # Gold accent line
-        from pptx.util import Inches
         shape = slide.shapes.add_shape(
             1, Inches(1.5), Inches(2.8), Inches(2), Pt(3)
         )
@@ -86,6 +107,23 @@ class DeckBuilder:
         self._add_textbox(slide, Inches(1.5), Inches(4.8), Inches(10), Inches(0.5),
                           f"Monthly Report  |  {report_date}  |  AUM: {aum}",
                           font_size=14, color=self.brand["secondary_color"])
+
+        m = self._metadata
+        if m.get("as_of_iso"):
+            line1 = f"As of {m['as_of_iso']}  |  Generated {m.get('generated_at', '')}"
+            line2 = m.get("prices_caption", "")
+            block = f"{line1}\n{line2}" if line2 else line1
+            self._add_textbox(
+                slide,
+                Inches(1.5),
+                Inches(6.72),
+                Inches(10.3),
+                Inches(0.62),
+                block,
+                font_size=9,
+                color=self.brand["secondary_color"],
+                alignment=PP_ALIGN.CENTER,
+            )
 
     def add_performance_slide(
         self,
@@ -118,6 +156,7 @@ class DeckBuilder:
                               label, font_size=11, color=self.brand["text_muted"])
 
         if variant == "simple":
+            self._add_slide_footer(slide, bg="light")
             return
 
         # Charts: standard = default sizes; detailed = taller charts for readability
@@ -131,6 +170,8 @@ class DeckBuilder:
             slide.shapes.add_picture(cum_chart_path, Inches(0.8), cum_top, chart_w, cum_h)
         if Path(dd_chart_path).exists():
             slide.shapes.add_picture(dd_chart_path, Inches(0.8), dd_top, chart_w, dd_h)
+
+        self._add_slide_footer(slide, bg="light")
 
     def add_exposure_slide(
         self,
@@ -190,6 +231,8 @@ class DeckBuilder:
                     p.font.size = Pt(9)
                     p.font.color.rgb = _hex_to_rgb(self.brand["text_dark"])
 
+        self._add_slide_footer(slide, bg="light")
+
     def add_top_positions_slide(self, longs: pd.DataFrame, shorts: pd.DataFrame):
         slide = self._add_blank_slide(self.brand["bg_light"])
         self._add_textbox(slide, Inches(0.8), Inches(0.4), Inches(10), Inches(0.6),
@@ -226,6 +269,8 @@ class DeckBuilder:
                                   f"{pnl_sign}{row['pnl_pct'] * 100:.1f}% P&L", font_size=10,
                                   color=pnl_color, alignment=PP_ALIGN.RIGHT)
 
+        self._add_slide_footer(slide, bg="light")
+
     def add_risk_slide(self, metrics: dict):
         slide = self._add_blank_slide(self.brand["bg_light"])
         self._add_textbox(slide, Inches(0.8), Inches(0.4), Inches(10), Inches(0.6),
@@ -252,6 +297,8 @@ class DeckBuilder:
             self._add_textbox(slide, x + Inches(0.3), y + Inches(1.2), Inches(3), Inches(0.5),
                               label, font_size=12, color=self.brand["text_muted"])
 
+        self._add_slide_footer(slide, bg="light")
+
     def add_attribution_slide(self, attribution: pd.DataFrame, chart_path: str):
         slide = self._add_blank_slide(self.brand["bg_light"])
         self._add_textbox(slide, Inches(0.8), Inches(0.4), Inches(10), Inches(0.6),
@@ -267,6 +314,7 @@ class DeckBuilder:
                 slide, Inches(8.0), Inches(2.8), Inches(4.8), Inches(1.0),
                 "No attribution data available", font_size=14, color=self.brand["text_muted"]
             )
+            self._add_slide_footer(slide, bg="light")
             return
 
         table_shape = slide.shapes.add_table(
@@ -304,6 +352,8 @@ class DeckBuilder:
                 p.font.color.rgb = _hex_to_rgb(contrib_color)
                 p.alignment = PP_ALIGN.RIGHT
 
+        self._add_slide_footer(slide, bg="light")
+
     def add_disclaimer_slide(self):
         slide = self._add_blank_slide(self.brand["bg_dark"])
         self._add_textbox(slide, Inches(1.5), Inches(1.5), Inches(10), Inches(0.6),
@@ -311,6 +361,7 @@ class DeckBuilder:
                           color=self._brand_color("text_light", "FFFFFF"), font_name=self.brand["font_heading"])
         self._add_textbox(slide, Inches(1.5), Inches(2.5), Inches(10), Inches(4),
                           self.config["disclaimer_text"], font_size=11, color=self.brand["secondary_color"])
+        self._add_slide_footer(slide, bg="dark")
 
     def save(self, output_path: str):
         self.prs.save(output_path)
