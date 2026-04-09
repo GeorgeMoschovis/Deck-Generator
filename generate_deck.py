@@ -71,7 +71,7 @@ def main() -> None:
     parser.add_argument(
         "--pdf",
         action="store_true",
-        help="After PPTX, convert to PDF via LibreOffice/soffice on PATH.",
+        help="After PPTX, export PDF (LibreOffice headless, or PowerPoint on Windows with comtypes).",
     )
     args = parser.parse_args()
 

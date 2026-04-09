@@ -167,6 +167,11 @@ def main() -> None:
         variant_choices[group_key] = ids[int(choice)]
 
     st.subheader("3) Generate")
+    also_pdf = st.checkbox(
+        "Also export PDF",
+        value=False,
+        help="After PPTX: convert with LibreOffice headless, or PowerPoint on Windows (pip install comtypes).",
+    )
     if st.button("Build deck", type="primary"):
         if uploaded is not None:
             holdings_path = PROJECT_ROOT / "output" / "_uploaded_holdings.csv"
@@ -228,6 +233,22 @@ def main() -> None:
             file_name=output_path.name,
             mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         )
+
+        if also_pdf:
+            try:
+                from src.pdf_export import pptx_to_pdf
+
+                pdf_path = pptx_to_pdf(output_path)
+                st.success(f"PDF: `{pdf_path}`")
+                st.download_button(
+                    label="Download PDF",
+                    data=pdf_path.read_bytes(),
+                    file_name=pdf_path.name,
+                    mime="application/pdf",
+                    key="deck_builder_pdf_download",
+                )
+            except Exception as exc:
+                st.warning(f"PDF export failed: {exc}")
 
 
 if __name__ == "__main__":

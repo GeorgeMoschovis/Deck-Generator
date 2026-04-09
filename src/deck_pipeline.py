@@ -54,6 +54,23 @@ def _top_n_for_variant(variant: str) -> int:
     return 5
 
 
+def _deck_metadata(prices: Any, report_date: str) -> dict[str, str]:
+    """As-of date, generation timestamp, and price source for deck footers."""
+    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    pr = getattr(prices, "attrs", {}).get("price_report") or {}
+    if isinstance(pr, dict) and pr.get("source") == "snapshot":
+        path_str = pr.get("path")
+        name = Path(path_str).name if path_str else "snapshot"
+        prices_caption = f"Prices: snapshot ({name})"
+    else:
+        prices_caption = "Prices & FX: Yahoo Finance"
+    return {
+        "as_of_iso": report_date,
+        "generated_at": generated_at,
+        "prices_caption": prices_caption,
+    }
+
+
 def _collect_reports_into_warnings(
     pipeline_warnings: list[str] | None,
     holdings_after_load: Any,
@@ -232,7 +249,7 @@ def generate_deck(
             branding=branding,
         )
 
-    deck = DeckBuilder(config)
+    deck = DeckBuilder(config, metadata=_deck_metadata(prices, report_date))
 
     report_date_fmt = datetime.strptime(report_date, "%Y-%m-%d").strftime("%B %Y")
 
