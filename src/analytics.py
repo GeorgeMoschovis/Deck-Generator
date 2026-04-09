@@ -43,8 +43,12 @@ def compute_portfolio_returns(holdings: pd.DataFrame, prices: pd.DataFrame) -> p
     return portfolio_returns
 
 
-def performance_table(returns: pd.Series) -> dict:
-    """Compute MTD, QTD, YTD, ITD performance stats."""
+def performance_table(returns: pd.Series, inception_date: str | None = None) -> dict:
+    """
+    Compute MTD, QTD, YTD, ITD performance stats.
+
+    If ``inception_date`` is set (ISO ``YYYY-MM-DD``), ITD uses returns on or after that date only.
+    """
     if returns.empty:
         return {"MTD": 0.0, "QTD": 0.0, "YTD": 0.0, "ITD": 0.0}
 
@@ -53,11 +57,22 @@ def performance_table(returns: pd.Series) -> dict:
         return {"MTD": 0.0, "QTD": 0.0, "YTD": 0.0, "ITD": 0.0}
 
     today = returns.index[-1]
+    inception_ts: pd.Timestamp | None = None
+    if inception_date:
+        try:
+            inception_ts = pd.Timestamp(inception_date)
+        except (ValueError, TypeError):
+            inception_ts = None
+
+    itd_series = returns
+    if inception_ts is not None:
+        itd_series = returns[returns.index >= inception_ts]
+
     periods = {
         "MTD": returns[returns.index >= today.replace(day=1)],
         "QTD": returns[returns.index >= pd.Timestamp(today.year, ((today.month - 1) // 3) * 3 + 1, 1)],
         "YTD": returns[returns.index >= pd.Timestamp(today.year, 1, 1)],
-        "ITD": returns,
+        "ITD": itd_series,
     }
     result = {}
     for label, r in periods.items():

@@ -6,16 +6,15 @@ Loads holdings CSV and enriches with live market data.
 
 from __future__ import annotations
 
+import os
+import warnings
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
-import warnings
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
-
 
 REQUIRED_HOLDINGS_COLUMNS: tuple[str, ...] = (
     "ticker",
@@ -88,8 +87,65 @@ def load_holdings(filepath: str | Path) -> pd.DataFrame:
     return holdings.reset_index(drop=True)
 
 
-def fetch_prices(tickers: Sequence[str], lookback_days: int = 252) -> pd.DataFrame:
-    """Fetch historical close prices from Yahoo Finance with resilient parsing."""
+def load_price_snapshot(path: str | Path) -> pd.DataFrame:
+    """
+    Load OHLC-style close history from a CSV saved with a DatetimeIndex in the first column.
+
+    Expected: first column is date; remaining columns are ticker symbols (adjusted close).
+    """
+    path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Price snapshot not found: {path}")
+
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        df = pd.read_csv(path, index_col=0, parse_dates=True)
+    elif suffix in (".parquet", ".pq"):
+        try:
+            df = pd.read_parquet(path)
+        except ImportError as exc:
+            raise ImportError(
+                "Reading Parquet snapshots requires pyarrow. Install pyarrow or use CSV."
+            ) from exc
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index)
+    else:
+        raise ValueError(f"Unsupported snapshot format: {path.suffix} (use .csv or .parquet)")
+
+    df = df.sort_index().apply(pd.to_numeric, errors="coerce")
+    df = df.dropna(how="all")
+    df.attrs["price_report"] = {
+        "source": "snapshot",
+        "path": str(path.resolve()),
+        "price_rows": int(len(df)),
+    }
+    return df
+
+
+def fetch_prices(
+    tickers: Sequence[str],
+    lookback_days: int = 252,
+    snapshot_path: str | Path | None = None,
+) -> pd.DataFrame:
+    """Fetch historical close prices from Yahoo Finance, or load from a snapshot file."""
+    snap = snapshot_path
+    if not snap:
+        use_snap = os.environ.get("DECK_USE_SNAPSHOT", "").strip().lower()
+        path_from_env = os.environ.get("DECK_PRICE_SNAPSHOT", "").strip()
+        if not path_from_env:
+            path_from_env = os.environ.get("DECK_SNAPSHOT_PATH", "").strip()
+        if use_snap in ("1", "true", "yes"):
+            if not path_from_env:
+                raise ValueError(
+                    "DECK_USE_SNAPSHOT is enabled but no file path is set. "
+                    "Set DECK_PRICE_SNAPSHOT or DECK_SNAPSHOT_PATH to a CSV or Parquet file."
+                )
+            snap = path_from_env
+        elif path_from_env:
+            snap = path_from_env
+    if snap:
+        return load_price_snapshot(snap)
+
     valid_tickers = _normalize_ticker_list(tickers)
     if not valid_tickers:
         warnings.warn(
@@ -154,8 +210,57 @@ def fetch_prices(tickers: Sequence[str], lookback_days: int = 252) -> pd.DataFra
     return prices
 
 
-def enrich_holdings(holdings: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
-    """Add current price, market value, weight, and P&L to holdings."""
+def fetch_fx_to_base_rate(from_currency: str, base_currency: str) -> float:
+    """
+    Return multiplier: ``amount_in_from_ccy * rate == amount_in_base_ccy`` (spot, latest close).
+
+    Uses Yahoo Finance FX pair tickers like USDEUR=X. Falls back to inverted pair if needed.
+    """
+    fcy = str(from_currency).strip().upper()
+    bcy = str(base_currency).strip().upper()
+    if not fcy or not bcy or fcy == bcy:
+        return 1.0
+
+    end = datetime.today()
+    start = end - timedelta(days=21)
+
+    def _last_close(ticker: str) -> float | None:
+        data = yf.download(ticker, start=start, end=end, auto_adjust=True, progress=False)
+        if data.empty:
+            return None
+        if "Close" in data.columns:
+            s = data["Close"].dropna()
+        else:
+            return None
+        if s.empty:
+            return None
+        return float(s.iloc[-1])
+
+    direct = f"{fcy}{bcy}=X"
+    rate = _last_close(direct)
+    if rate is not None and rate > 0:
+        return rate
+
+    inverse = f"{bcy}{fcy}=X"
+    inv = _last_close(inverse)
+    if inv is not None and inv > 0:
+        return 1.0 / inv
+
+    warnings.warn(
+        f"Could not resolve FX rate {fcy} -> {bcy}; using 1.0.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+    return 1.0
+
+
+def enrich_holdings(
+    holdings: pd.DataFrame,
+    prices: pd.DataFrame,
+    *,
+    base_currency: str | None = None,
+) -> pd.DataFrame:
+    """Add current price, market value, weight, and P&L to holdings. Optionally convert to base_currency."""
     missing = set(REQUIRED_HOLDINGS_COLUMNS) - set(holdings.columns)
     if missing:
         raise ValueError(f"Holdings DataFrame missing required columns: {missing}")
@@ -189,6 +294,14 @@ def enrich_holdings(holdings: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFram
             "unresolved_tickers": unresolved_tickers,
         }
         return enriched
+
+    if base_currency:
+        bcy = str(base_currency).strip().upper()
+        currencies = {str(c).strip().upper() for c in enriched["currency"].dropna().unique()}
+        fx_map = {c: fetch_fx_to_base_rate(c, bcy) for c in currencies}
+        fx_series = enriched["currency"].astype(str).str.strip().str.upper().map(lambda c: fx_map.get(c, 1.0))
+        enriched["current_price"] = enriched["current_price"] * fx_series
+        enriched["avg_cost"] = enriched["avg_cost"] * fx_series
 
     enriched["market_value"] = enriched["quantity"] * enriched["current_price"]
     enriched["cost_basis"] = enriched["quantity"] * enriched["avg_cost"]

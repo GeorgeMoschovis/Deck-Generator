@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 charts/*.png
+cache/*
+!cache/.gitkeep
 output/*.pptx
 output/*.pdf
 .env
@@ -13,3 +15,6 @@ build/
 .cursorrules
 CURSOR_GUIDE.md
 .cursor/
+
+# Streamlit Deck Builder persisted sidebar defaults (local only)
+.deck_builder_state.json
