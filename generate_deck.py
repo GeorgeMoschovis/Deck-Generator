@@ -9,6 +9,7 @@ Uses the same pipeline as the local Deck Builder UI (see README).
 Usage:
     python generate_deck.py --holdings data/sample_holdings.csv --date 2026-03-31
     python generate_deck.py --holdings data/sample_holdings.csv --template minimal_investor --pdf
+    python generate_deck.py --version
 """
 
 from __future__ import annotations
